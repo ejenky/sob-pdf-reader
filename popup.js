@@ -109,32 +109,33 @@ async function extractFromPDF(url) {
 }
 
 // ─── UI: Display Results ──────────────────────────────────────────────────────
+// Display fields — matches the Step 18 Quick Benefits Recap sales script order
 const DISPLAY_FIELDS = [
-  // Section: Costs & Premiums
-  { section: 'COSTS & PREMIUMS' },
-  { key: 'planPremium', label: 'Plan Premium' },
-  { key: 'partBReduction', label: 'Part B Reduction' },
-  { key: 'moop', label: 'MOOP (Max Out-of-Pocket)' },
-  { key: 'medDeductible', label: 'Medical Deductible' },
-  { key: 'rxDeductible', label: 'Rx Deductible' },
+  // Extra Benefits (Read Sales Call Notes) — presented first
+  { section: 'EXTRA BENEFITS' },
+  { key: 'hearingAllowance', label: 'Hearing' },
+  { key: 'foodFlexCard', label: 'Food Card' },
+  { key: 'dentalAllowance', label: 'Dental' },
+  { key: 'visionAllowance', label: 'Vision' },
+  { key: 'transportation', label: 'Transportation' },
+  { key: 'otcAllowance', label: 'OTC' },
 
-  // Section: Medical Visits
-  { section: 'MEDICAL VISITS' },
+  // Must Present All Medical Copays
+  { section: 'MEDICAL COPAYS & CO-INSURANCES' },
+  { key: 'planPremium', label: 'Plan Premium' },
+  { key: 'moop', label: 'MOOP' },
+  { key: 'urgentCopay', label: 'Urgent Care Copay' },
+  { key: 'erCopay', label: 'Emergency Room Copay' },
+  { key: 'hospitalCopay', label: 'Hospital Copay' },
   { key: 'pcpCopay', label: 'PCP Copay' },
   { key: 'specialistCopay', label: 'Specialist Copay' },
   { key: 'preventiveCare', label: 'Preventive Care' },
-  { key: 'erCopay', label: 'Emergency Room' },
-  { key: 'urgentCopay', label: 'Urgent Care' },
-  { key: 'hospitalCopay', label: 'Hospital (Inpatient)' },
 
-  // Section: Extra Benefits
-  { section: 'EXTRA BENEFITS' },
-  { key: 'otcAllowance', label: 'OTC Allowance' },
-  { key: 'foodFlexCard', label: 'Food/Flex Card' },
-  { key: 'dentalAllowance', label: 'Dental' },
-  { key: 'visionAllowance', label: 'Vision' },
-  { key: 'hearingAllowance', label: 'Hearing' },
-  { key: 'transportation', label: 'Transportation' }
+  // Must Present If Applicable
+  { section: 'IF APPLICABLE' },
+  { key: 'partBReduction', label: 'Part B Premium Reduction' },
+  { key: 'medDeductible', label: 'Medical Deductible' },
+  { key: 'rxDeductible', label: 'Rx Deductible' }
 ];
 
 function renderResults(data) {
@@ -200,18 +201,42 @@ function formatForClipboard(data) {
   const now = new Date();
   const date = `${now.getMonth() + 1}/${now.getDate()}/${now.getFullYear()}`;
 
-  let text = 'MEDICARE PLAN BENEFIT SUMMARY\n';
+  let text = `STEP 18 - QUICK BENEFITS RECAP\n`;
   text += `Plan: ${data.planName || 'Unknown'}\n`;
   text += `Extracted: ${date}\n\n`;
 
-  for (const field of DISPLAY_FIELDS) {
-    if (field.section) {
-      text += `\n--- ${field.section} ---\n`;
-      continue;
-    }
-    const val = data[field.key] || 'Not found';
-    if (val === '__HIDE__') continue;
-    text += `${field.label}: ${val}\n`;
+  // Extra Benefits (Read Sales Call Notes)
+  text += `--- EXTRA BENEFITS ---\n`;
+  text += `Hearing: ${data.hearingAllowance || 'Not found'}\n`;
+  if (data.foodFlexCard && data.foodFlexCard !== '__HIDE__') {
+    text += `Food Card: ${data.foodFlexCard || 'Not found'}\n`;
+  }
+  text += `Dental: ${data.dentalAllowance || 'Not found'}\n`;
+  text += `Vision: ${data.visionAllowance || 'Not found'}\n`;
+  text += `Transportation: ${data.transportation || 'Not found'}\n`;
+  text += `OTC: ${data.otcAllowance || 'Not found'}\n`;
+
+  // Must Present All Medical Copays
+  text += `\n--- MEDICAL COPAYS & CO-INSURANCES ---\n`;
+  text += `Plan Premium: ${data.planPremium || 'Not found'}\n`;
+  text += `MOOP: ${data.moop || 'Not found'}\n`;
+  text += `Urgent Care Copay: ${data.urgentCopay || 'Not found'}\n`;
+  text += `Emergency Room Copay: ${data.erCopay || 'Not found'}\n`;
+  text += `Hospital Copay: ${data.hospitalCopay || 'Not found'}\n`;
+  text += `PCP Copay: ${data.pcpCopay || 'Not found'}\n`;
+  text += `Specialist Copay: ${data.specialistCopay || 'Not found'}\n`;
+  text += `Preventive Care: ${data.preventiveCare || 'Not found'}\n`;
+
+  // Must Present If Applicable
+  text += `\n--- IF APPLICABLE ---\n`;
+  if (data.partBReduction && data.partBReduction !== 'N/A') {
+    text += `Part B Premium Reduction: ${data.partBReduction}\n`;
+  }
+  if (data.medDeductible && data.medDeductible !== '$0' && data.medDeductible !== 'Not found') {
+    text += `Medical Deductible: ${data.medDeductible}\n`;
+  }
+  if (data.rxDeductible && data.rxDeductible !== '$0' && data.rxDeductible !== 'Not found') {
+    text += `Rx Deductible: ${data.rxDeductible}\n`;
   }
 
   return text;
