@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Medicare SOB Extractor</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    :root {
+      --bg: #0a0f1e;
+      --surface: #111827;
+      --surface2: #1a2236;
+      --border: #1f3054;
+      --accent: #3b82f6;
+      --accent2: #10b981;
+      --accent3: #f59e0b;
+      --text: #e2e8f0;
+      --text-dim: #64748b;
+      --text-muted: #374151;
+      --danger: #ef4444;
+      --mono: 'IBM Plex Mono', monospace;
+      --sans: 'IBM Plex Sans', sans-serif;
+    }
+    body {
+      width: 480px;
+      min-height: 200px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    /* Header */
+    .header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .header-icon {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .header-title {
+      flex: 1;
+    }
+    .header-title h1 {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: 0.02em;
+    }
+    .header-title p {
+      font-size: 10px;
+      color: var(--text-dim);
+      font-family: var(--mono);
+    }
+    .header-badge {
+      font-size: 9px;
+      font-family: var(--mono);
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--text-muted);
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .header-badge.detected {
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent2);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    /* Status area */
+    .status-bar {
+      padding: 10px 16px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 10px;
+    }
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-dim);
+      flex-shrink: 0;
+    }
+    .status-dot.green { background: var(--accent2); box-shadow: 0 0 6px var(--accent2); }
+    .status-dot.blue { background: var(--accent); box-shadow: 0 0 6px var(--accent); animation: pulse 1.5s infinite; }
+    .status-dot.red { background: var(--danger); }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    #status-text {
+      color: var(--text-dim);
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    /* Main area */
+    .main {
+      padding: 12px 16px;
+    }
+    /* State screens */
+    .state {
+      display: none;
+    }
+    .state.active {
+      display: block;
+    }
+    /* No PDF screen */
+    .no-pdf {
+      text-align: center;
+      padding: 24px 16px;
+    }
+    .no-pdf .icon {
+      font-size: 32px;
+      margin-bottom: 10px;
+      opacity: 0.4;
+    }
+    .no-pdf h2 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+    }
+    .no-pdf p {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+    /* Extract button */
+    .btn-extract {
+      width: 100%;
+      padding: 10px 16px;
+      background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-family: var(--sans);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+      margin-bottom: 8px;
+    }
+    .btn-extract:hover {
+      background: linear-gradient(135deg, #1e40af, #2563eb);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+    .btn-extract:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .btn-copy {
+      width: 100%;
+      padding: 8px 16px;
+      background: var(--surface2);
+      color: var(--accent2);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      border-radius: 6px;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .btn-copy:hover {
+      background: rgba(16, 185, 129, 0.1);
+      border-color: var(--accent2);
+    }
+    .btn-copy.copied {
+      color: var(--accent2);
+      border-color: var(--accent2);
+    }
+    /* Results grid */
+    .results-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .results-header h3 {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      font-family: var(--mono);
+    }
+    .plan-name {
+      font-size: 9px;
+      font-family: var(--mono);
+      color: var(--accent);
+      background: rgba(59, 130, 246, 0.1);
+      padding: 2px 6px;
+      border-radius: 4px;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .results-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      background: var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .result-row {
+      display: flex;
+      align-items: flex-start;
+      background: var(--surface);
+      min-height: 28px;
+    }
+    .result-row:nth-child(even) {
+      background: var(--surface2);
+    }
+    .result-label {
+      width: 155px;
+      flex-shrink: 0;
+      padding: 6px 8px 6px 10px;
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--text-dim);
+      border-right: 1px solid var(--border);
+    }
+    .result-value {
+      flex: 1;
+      padding: 6px 10px 6px 8px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text);
+      line-height: 1.4;
+    }
+    .result-value.highlight {
+      color: var(--accent2);
+      font-weight: 500;
+    }
+    .result-value.warn {
+      color: var(--accent3);
+    }
+    .result-value.na {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+    .section-header {
+      font-size: 9px;
+      font-family: var(--mono);
+      font-weight: 700;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 6px 10px 4px;
+      background: rgba(59, 130, 246, 0.08);
+      border-left: 2px solid var(--accent);
+    }
+    /* Progress bar */
+    .progress-wrap {
+      margin-bottom: 12px;
+    }
+    .progress-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .progress-bar {
+      height: 3px;
+      background: var(--surface2);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #3b82f6, #10b981);
+      border-radius: 2px;
+      width: 0%;
+      transition: width 0.3s ease;
+    }
+    /* Error */
+    .error-box {
+      background: rgba(239, 68, 68, 0.1);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-family: var(--mono);
+      font-size: 10px;
+      color: #fca5a5;
+      margin-bottom: 10px;
+    }
+    /* Setup warning */
+    .setup-warn {
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-size: 11px;
+      color: var(--accent3);
+      margin-bottom: 10px;
+    }
+    .setup-warn strong {
+      display: block;
+      margin-bottom: 4px;
+      font-weight: 600;
+    }
+    .setup-warn code {
+      display: block;
+      margin-top: 6px;
+      font-family: var(--mono);
+      font-size: 10px;
+      background: rgba(0,0,0,0.3);
+      padding: 6px 8px;
+      border-radius: 4px;
+      color: #fcd34d;
+    }
+    /* Footer */
+    .footer {
+      padding: 8px 16px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--text-muted);
+    }
+    .footer-tag {
+      color: var(--accent);
+      opacity: 0.6;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-icon">SOB</div>
+    <div class="header-title">
+      <h1>Medicare SOB Extractor</h1>
+      <p>Summary of Benefits - Auto Parser v1.2</p>
+    </div>
+    <div class="header-badge" id="pdf-badge">NO PDF</div>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-dot" id="status-dot"></div>
+    <div id="status-text">Checking current tab...</div>
+  </div>
+
+  <div class="main">
+    <!-- STATE: No PDF detected -->
+    <div class="state active" id="state-no-pdf">
+      <div class="no-pdf">
+        <div class="icon">PDF</div>
+        <h2>No PDF Detected</h2>
+        <p>Navigate to a Medicare Summary of Benefits PDF.<br>The extension will auto-detect and enable extraction.</p>
+      </div>
+    </div>
+
+    <!-- STATE: Setup required -->
+    <div class="state" id="state-setup">
+      <div class="setup-warn">
+        <strong>PDF.js Library Required</strong>
+        Run the setup script to download the PDF parser, then reload the extension.
+        <code>chmod +x setup.sh && ./setup.sh</code>
+      </div>
+      <div class="no-pdf">
+        <div class="icon">Setup</div>
+        <h2>One-Time Setup Needed</h2>
+        <p>See the README.md for setup instructions.</p>
+      </div>
+    </div>
+
+    <!-- STATE: Ready to extract -->
+    <div class="state" id="state-ready">
+      <div style="margin-bottom: 10px;">
+        <div style="font-size: 10px; color: var(--text-dim); font-family: var(--mono); margin-bottom: 6px;">
+          PDF DETECTED - READY TO EXTRACT
+        </div>
+        <div id="pdf-url" style="font-size: 9px; color: var(--text-muted); font-family: var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: var(--surface2); padding: 4px 8px; border-radius: 4px; border: 1px solid var(--border);"></div>
+      </div>
+      <button class="btn-extract" id="btn-extract">
+        <span>Extract Plan Benefits</span>
+      </button>
+    </div>
+
+    <!-- STATE: Loading -->
+    <div class="state" id="state-loading">
+      <div class="progress-wrap">
+        <div class="progress-label">
+          <span id="progress-msg">Fetching PDF...</span>
+          <span id="progress-pct">0%</span>
+        </div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progress-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- STATE: Error -->
+    <div class="state" id="state-error">
+      <div class="error-box" id="error-msg"></div>
+      <button class="btn-extract" id="btn-retry">Try Again</button>
+    </div>
+
+    <!-- STATE: Results -->
+    <div class="state" id="state-results">
+      <div class="results-header">
+        <h3>Extracted Benefits</h3>
+        <div class="plan-name" id="plan-name-display"></div>
+      </div>
+      <div class="results-grid" id="results-grid">
+        <!-- Populated by JS -->
+      </div>
+      <button class="btn-copy" id="btn-copy">
+        <span id="copy-label">Copy to Clipboard</span>
+      </button>
+      <button class="btn-extract" id="btn-reextract" style="margin-bottom:0;">
+        Re-Extract
+      </button>
+    </div>
+  </div>
+
+  <div class="footer">
+    <span class="footer-tag">medicare-sob-extractor v1.2</span>
+    <span>Fields: 18 - Carriers: Multi</span>
+  </div>
+
+  <script src="lib/pdf.min.js"></script>
+  <script src="lib/table-extract.js"></script>
+  <script src="lib/normalizer.js"></script>
+  <script src="lib/sob-parser.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
