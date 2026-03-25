@@ -154,6 +154,9 @@ function renderResults(data) {
       continue;
     }
 
+    // Skip hidden fields (e.g. Food/Flex on Extra Supports Wallet plans)
+    if (data[field.key] === '__HIDE__') continue;
+
     const row = document.createElement('div');
     row.className = 'result-row';
 
@@ -185,7 +188,7 @@ function renderResults(data) {
 }
 
 function countFound(data) {
-  return DISPLAY_FIELDS.filter(f => f.key && data[f.key] && data[f.key] !== 'Not found').length;
+  return DISPLAY_FIELDS.filter(f => f.key && data[f.key] && data[f.key] !== 'Not found' && data[f.key] !== '__HIDE__').length;
 }
 
 function countFields() {
@@ -207,6 +210,7 @@ function formatForClipboard(data) {
       continue;
     }
     const val = data[field.key] || 'Not found';
+    if (val === '__HIDE__') continue;
     text += `${field.label}: ${val}\n`;
   }
 
