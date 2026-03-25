@@ -1,0 +1,22 @@
+{
+  "name": "sob-pdf-reader",
+  "version": "1.0.0",
+  "description": "Automatically detects Medicare Summary of Benefits PDFs in your browser and extracts 18 key plan fields to your clipboard with one click.",
+  "main": "background.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://local_proxy@127.0.0.1:43207/git/ejenky/sob-pdf-reader"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "pdfjs-dist": "^3.11.174"
+  }
+}
