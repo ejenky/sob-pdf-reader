@@ -229,15 +229,9 @@ function formatForClipboard(data) {
 
   // Must Present If Applicable
   text += `\n--- IF APPLICABLE ---\n`;
-  if (data.partBReduction && data.partBReduction !== 'N/A') {
-    text += `Part B Premium Reduction: ${data.partBReduction}\n`;
-  }
-  if (data.medDeductible && data.medDeductible !== '$0' && data.medDeductible !== 'Not found') {
-    text += `Medical Deductible: ${data.medDeductible}\n`;
-  }
-  if (data.rxDeductible && data.rxDeductible !== '$0' && data.rxDeductible !== 'Not found') {
-    text += `Rx Deductible: ${data.rxDeductible}\n`;
-  }
+  text += `Part B Premium Reduction: ${data.partBReduction || 'N/A'}\n`;
+  text += `Medical Deductible: ${data.medDeductible || '$0'}\n`;
+  text += `Rx Deductible: ${data.rxDeductible || '$0'}\n`;
 
   return text;
 }
