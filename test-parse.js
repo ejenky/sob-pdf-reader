@@ -134,6 +134,9 @@ async function extractPage(page) {
 
   const columns = detectColumns(rows);
 
+  // Detect if this is a flowing-text (non-tabular) page
+  const isFlowing = columns.length <= 1 || (columns.length === 2 && Math.abs(columns[1] - columns[0]) < 30);
+
   const structuredRows = rows.map(rowItems => {
     const avgY = rowItems.reduce((s, it) => s + it.y, 0) / rowItems.length;
     const maxFontSize = Math.max(...rowItems.map(it => it.fontSize));
@@ -183,7 +186,12 @@ async function extractPage(page) {
     return parts.join(' | ');
   }).join('\n');
 
-  return { rows: merged, rawText };
+  // For flowing-text pages, build a prose version (all text in reading order)
+  const proseText = isFlowing
+    ? filtered.sort((a, b) => a.y - b.y || a.x - b.x).map(it => it.text).join(' ')
+    : '';
+
+  return { rows: merged, rawText, proseText, isFlowing };
 }
 
 async function main() {
