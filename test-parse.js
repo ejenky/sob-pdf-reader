@@ -186,10 +186,8 @@ async function extractPage(page) {
     return parts.join(' | ');
   }).join('\n');
 
-  // For flowing-text pages, build a prose version (all text in reading order)
-  const proseText = isFlowing
-    ? filtered.sort((a, b) => a.y - b.y || a.x - b.x).map(it => it.text).join(' ')
-    : '';
+  // Always build prose text (all text in reading order) for flowing-text format detection
+  const proseText = filtered.sort((a, b) => a.y - b.y || a.x - b.x).map(it => it.text).join(' ');
 
   return { rows: merged, rawText, proseText, isFlowing };
 }
