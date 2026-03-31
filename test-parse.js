@@ -14,6 +14,20 @@ global.MultiPlan = null;
 
 // Load our modules
 require('./lib/normalizer.js');
+require('./lib/carrier-detect.js');
+require('./lib/parsers/base-parser.js');
+require('./lib/parsers/generic.js');
+require('./lib/parsers/aetna.js');
+require('./lib/parsers/uhc.js');
+require('./lib/parsers/anthem.js');
+require('./lib/parsers/healthspring.js');
+require('./lib/parsers/clearspring.js');
+require('./lib/parsers/zing.js');
+require('./lib/parsers/clover.js');
+require('./lib/parsers/kaiser.js');
+require('./lib/parsers/molina.js');
+require('./lib/parsers/bcbsnc.js');
+require('./lib/parsers/wellcare.js');
 require('./lib/sob-parser.js');
 require('./lib/multi-plan.js');
 
