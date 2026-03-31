@@ -162,8 +162,8 @@ async function extractFromPDF(url, selectedPlan) {
     pagesToParse = MultiPlan.filterForPlan(allPages, selectedPlan, cachedPagesRaw);
   }
 
-  // Parse using the structured data
-  const result = SOBParser.parse(pagesToParse);
+  // Parse using the structured data (pass pagesRaw for carrier-specific parsers)
+  const result = SOBParser.parse(pagesToParse, cachedPagesRaw);
 
   setProgress('Finalizing...', 95);
 

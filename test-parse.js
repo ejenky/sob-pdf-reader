@@ -298,7 +298,7 @@ async function main() {
 
       // Parse
       console.log('\n=== PARSED RESULTS ===');
-      const result = SOBParser.parse(filteredPages);
+      const result = SOBParser.parse(filteredPages, pagesRaw);
       for (const [key, value] of Object.entries(result)) {
         console.log(`${key}: ${value}`);
       }
@@ -351,7 +351,7 @@ async function main() {
 
   // Run the actual parser
   console.log('\n=== PARSED RESULTS ===');
-  const result = SOBParser.parse(allPages);
+  const result = SOBParser.parse(allPages, pagesRaw);
   for (const [key, value] of Object.entries(result)) {
     console.log(`${key}: ${value}`);
   }
