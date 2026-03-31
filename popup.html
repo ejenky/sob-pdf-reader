@@ -421,6 +421,41 @@
       </button>
     </div>
 
+    <!-- STATE: Plan Selection (multi-plan PDFs) -->
+    <div class="state" id="state-plan-select">
+      <div style="margin-bottom: 10px;">
+        <div style="font-size: 10px; color: var(--accent3); font-family: var(--mono); margin-bottom: 6px; font-weight: 600;">
+          MULTI-PLAN PDF DETECTED
+        </div>
+        <div style="font-size: 11px; color: var(--text-dim); margin-bottom: 10px;">
+          This PDF contains multiple plans. Select which plan to extract:
+        </div>
+        <select id="plan-selector" style="
+          width: 100%;
+          padding: 8px 10px;
+          background: var(--surface2);
+          color: var(--text);
+          border: 1px solid var(--border);
+          border-radius: 6px;
+          font-family: var(--mono);
+          font-size: 11px;
+          margin-bottom: 10px;
+          cursor: pointer;
+          appearance: none;
+          -webkit-appearance: none;
+          background-image: url('data:image/svg+xml;utf8,<svg fill=&quot;%2364748b&quot; viewBox=&quot;0 0 20 20&quot; xmlns=&quot;http://www.w3.org/2000/svg&quot;><path d=&quot;M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z&quot;/></svg>');
+          background-repeat: no-repeat;
+          background-position: right 8px center;
+          background-size: 16px;
+          padding-right: 30px;
+        ">
+        </select>
+      </div>
+      <button class="btn-extract" id="btn-extract-plan">
+        <span>Extract Selected Plan</span>
+      </button>
+    </div>
+
     <!-- STATE: Loading -->
     <div class="state" id="state-loading">
       <div class="progress-wrap">
@@ -465,6 +500,7 @@
 
   <script src="lib/pdf.min.js"></script>
   <script src="lib/table-extract.js"></script>
+  <script src="lib/multi-plan.js"></script>
   <script src="lib/normalizer.js"></script>
   <script src="lib/sob-parser.js"></script>
   <script src="popup.js"></script>

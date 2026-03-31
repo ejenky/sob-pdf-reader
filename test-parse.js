@@ -1,5 +1,6 @@
 // test-parse.js — Run the SOB parser on a local PDF file via Node.js
-// Usage: node test-parse.js /path/to/file.pdf
+// Usage: node test-parse.js /path/to/file.pdf [plan-index]
+//   plan-index: optional, 0-based index of plan to extract from multi-plan PDFs
 
 const fs = require('fs');
 const path = require('path');
@@ -9,10 +10,12 @@ global.window = global;
 global.Normalizer = null;
 global.SOBParser = null;
 global.TableExtract = null;
+global.MultiPlan = null;
 
 // Load our modules
 require('./lib/normalizer.js');
 require('./lib/sob-parser.js');
+require('./lib/multi-plan.js');
 
 // We need to rewrite table-extract for Node since it uses PDF.js differently
 const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
@@ -92,6 +95,28 @@ function assignColumn(x, columns) {
     if (x >= columns[i] - TOLERANCE) bestIdx = i;
   }
   return bestIdx;
+}
+
+/**
+ * Extract raw text items from a page (for multi-plan detection)
+ */
+async function extractPageRaw(page, pageNum) {
+  const viewport = page.getViewport({ scale: 1.0 });
+  const pageHeight = viewport.height;
+  const pageWidth = viewport.width;
+  const textContent = await page.getTextContent();
+  const items = textContent.items
+    .filter(item => item.str && item.str.trim())
+    .map(item => ({
+      text: item.str.trim().replace(/[\u2010-\u2015\u2212]/g, '-'),
+      x: item.transform[4],
+      y: pageHeight - item.transform[5],
+      width: item.width,
+      height: item.height,
+      fontSize: Math.abs(item.transform[3]) || Math.abs(item.transform[0]) || 12
+    }));
+
+  return { items, pageWidth, pageHeight, pageNum };
 }
 
 async function extractPage(page) {
@@ -194,8 +219,10 @@ async function extractPage(page) {
 
 async function main() {
   const pdfPath = process.argv[2];
+  const planIndex = process.argv[3] !== undefined ? parseInt(process.argv[3]) : null;
+
   if (!pdfPath) {
-    console.error('Usage: node test-parse.js <pdf-file>');
+    console.error('Usage: node test-parse.js <pdf-file> [plan-index]');
     process.exit(1);
   }
 
@@ -203,8 +230,75 @@ async function main() {
   const pdf = await pdfjsLib.getDocument({ data, verbosity: 0 }).promise;
   console.log(`PDF loaded: ${pdf.numPages} pages\n`);
 
+  // Phase 1: Extract raw items for multi-plan detection
+  const pagesRaw = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const rawPage = await extractPageRaw(page, i - 1);
+    pagesRaw.push(rawPage);
+  }
+
+  // Phase 2: Detect multiple plans
+  const detectedPlans = MultiPlan.detectMultiplePlans(pagesRaw);
+
+  if (detectedPlans.length > 0) {
+    console.log(`=== MULTI-PLAN PDF DETECTED: ${detectedPlans.length} plans ===`);
+    for (let i = 0; i < detectedPlans.length; i++) {
+      const p = detectedPlans[i];
+      console.log(`  [${i}] ${p.name} (${p.hNumber}) — ${p.type}` +
+        (p.type === 'section' ? `, pages ${p.startPage + 1}-${p.endPage + 1}` : '') +
+        (p.type === 'column' ? `, xMin=${Math.round(p.xMin)} xMax=${Math.round(p.xMax)}` : ''));
+    }
+    console.log('');
+
+    if (planIndex === null) {
+      console.log('To extract a specific plan, run: node test-parse.js <pdf-file> <plan-index>');
+      console.log('Example: node test-parse.js ' + pdfPath + ' 0');
+
+      // Also run the default (unfiltered) parse for comparison
+      console.log('\n=== DEFAULT (UNFILTERED) PARSE ===');
+    } else if (planIndex >= 0 && planIndex < detectedPlans.length) {
+      const selectedPlan = detectedPlans[planIndex];
+      console.log(`=== EXTRACTING PLAN [${planIndex}]: ${selectedPlan.name} ===\n`);
+
+      // Phase 3: Extract all pages structured
+      const allPages = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const pageData = await extractPage(page);
+        allPages.push(pageData);
+      }
+
+      // Phase 4: Filter for selected plan
+      const filteredPages = MultiPlan.filterForPlan(allPages, selectedPlan, pagesRaw);
+
+      console.log(`Filtered to ${filteredPages.length} pages\n`);
+
+      // Debug: show some rows
+      console.log('=== SAMPLE FILTERED ROWS ===');
+      for (let p = 0; p < Math.min(3, filteredPages.length); p++) {
+        for (const row of filteredPages[p].rows.slice(0, 5)) {
+          console.log(`  Label: "${row.label}" | InNet: "${row.inNetwork}"`);
+        }
+      }
+
+      // Parse
+      console.log('\n=== PARSED RESULTS ===');
+      const result = SOBParser.parse(filteredPages);
+      for (const [key, value] of Object.entries(result)) {
+        console.log(`${key}: ${value}`);
+      }
+      return;
+    } else {
+      console.error(`Invalid plan index ${planIndex}. Must be 0-${detectedPlans.length - 1}`);
+      process.exit(1);
+    }
+  }
+
+  // Standard single-plan extraction
   const allPages = [];
   for (let i = 1; i <= pdf.numPages; i++) {
+    const pct = 20 + Math.round((i / pdf.numPages) * 50);
     const page = await pdf.getPage(i);
     const pageData = await extractPage(page);
     allPages.push(pageData);

@@ -4,7 +4,10 @@
 // ─── State Management ────────────────────────────────────────────────────────
 let currentTabUrl = null;
 let extractedData = null;
-const states = ['no-pdf', 'setup', 'ready', 'loading', 'error', 'results'];
+let detectedPlans = [];
+let cachedPagesRaw = null;
+let cachedPdf = null;
+const states = ['no-pdf', 'setup', 'ready', 'plan-select', 'loading', 'error', 'results'];
 
 function showState(name) {
   states.forEach(s => {
@@ -75,33 +78,92 @@ async function checkCurrentTab() {
 }
 
 // ─── PDF Extraction Pipeline ──────────────────────────────────────────────────
-async function extractFromPDF(url) {
+
+/**
+ * Extract raw page items for multi-plan detection
+ */
+async function extractPageRaw(page, pageNum) {
+  const viewport = page.getViewport({ scale: 1.0 });
+  const pageHeight = viewport.height;
+  const pageWidth = viewport.width;
+  const textContent = await page.getTextContent();
+  const items = textContent.items
+    .filter(item => item.str && item.str.trim())
+    .map(item => ({
+      text: item.str.trim().replace(/[\u2010-\u2015\u2212]/g, '-'),
+      x: item.transform[4],
+      y: pageHeight - item.transform[5],
+      width: item.width,
+      height: item.height,
+      fontSize: Math.abs(item.transform[3]) || Math.abs(item.transform[0]) || 12
+    }));
+  return { items, pageWidth, pageHeight, pageNum };
+}
+
+/**
+ * Phase 1: Load PDF and detect multiple plans.
+ * Returns detected plans array (empty for single-plan PDFs).
+ */
+async function loadAndDetectPlans(url) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL('lib/pdf.worker.min.js');
 
   setProgress('Fetching PDF from URL...', 10);
   const loadingTask = pdfjsLib.getDocument({ url: url, verbosity: 0 });
-  const pdf = await loadingTask.promise;
-  const totalPages = pdf.numPages;
+  cachedPdf = await loadingTask.promise;
+  const totalPages = cachedPdf.numPages;
 
-  setProgress(`Loading ${totalPages} pages...`, 20);
+  setProgress(`Scanning ${totalPages} pages for plans...`, 20);
+
+  // Extract raw items for multi-plan detection
+  cachedPagesRaw = [];
+  for (let i = 1; i <= totalPages; i++) {
+    const pct = 20 + Math.round((i / totalPages) * 30);
+    setProgress(`Scanning page ${i} of ${totalPages}...`, pct);
+    const page = await cachedPdf.getPage(i);
+    const rawPage = await extractPageRaw(page, i - 1);
+    cachedPagesRaw.push(rawPage);
+  }
+
+  setProgress('Detecting plans...', 55);
+
+  // Detect multiple plans
+  return MultiPlan.detectMultiplePlans(cachedPagesRaw);
+}
+
+/**
+ * Phase 2: Extract benefits from PDF, optionally filtering for a specific plan.
+ */
+async function extractFromPDF(url, selectedPlan) {
+  if (!cachedPdf) {
+    // If no cached PDF, load fresh (shouldn't happen in normal flow)
+    pdfjsLib.GlobalWorkerOptions.workerSrc = chrome.runtime.getURL('lib/pdf.worker.min.js');
+    setProgress('Fetching PDF from URL...', 10);
+    const loadingTask = pdfjsLib.getDocument({ url: url, verbosity: 0 });
+    cachedPdf = await loadingTask.promise;
+  }
+
+  const totalPages = cachedPdf.numPages;
+  setProgress(`Extracting ${totalPages} pages...`, 60);
 
   const allPages = [];
-
   for (let i = 1; i <= totalPages; i++) {
-    const pct = 20 + Math.round((i / totalPages) * 50);
+    const pct = 60 + Math.round((i / totalPages) * 25);
     setProgress(`Extracting page ${i} of ${totalPages}...`, pct);
-
-    const page = await pdf.getPage(i);
-
-    // Use spatial table extraction (the key accuracy improvement)
+    const page = await cachedPdf.getPage(i);
     const pageData = await TableExtract.extractPageStructured(page);
     allPages.push(pageData);
   }
 
-  setProgress('Parsing benefit data (structured)...', 75);
+  setProgress('Parsing benefit data...', 88);
+
+  // Filter for selected plan if provided
+  let pagesToParse = allPages;
+  if (selectedPlan) {
+    pagesToParse = MultiPlan.filterForPlan(allPages, selectedPlan, cachedPagesRaw);
+  }
 
   // Parse using the structured data
-  const result = SOBParser.parse(allPages);
+  const result = SOBParser.parse(pagesToParse);
 
   setProgress('Finalizing...', 95);
 
@@ -269,12 +331,59 @@ async function copyToClipboard() {
 async function doExtract() {
   if (!currentTabUrl) return;
 
+  // Reset cached data
+  detectedPlans = [];
+  cachedPagesRaw = null;
+  cachedPdf = null;
+
   showState('loading');
-  setStatus('Extracting benefits...', 'blue');
-  setProgress('Starting extraction...', 0);
+  setStatus('Scanning PDF...', 'blue');
+  setProgress('Starting scan...', 0);
 
   try {
-    const data = await extractFromPDF(currentTabUrl);
+    // Phase 1: Load and detect plans
+    detectedPlans = await loadAndDetectPlans(currentTabUrl);
+
+    if (detectedPlans.length > 1) {
+      // Multi-plan PDF — show plan selection UI
+      const selector = document.getElementById('plan-selector');
+      selector.innerHTML = '';
+      for (let i = 0; i < detectedPlans.length; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = detectedPlans[i].name;
+        selector.appendChild(option);
+      }
+      setStatus(`${detectedPlans.length} plans detected — select one`, 'green');
+      showState('plan-select');
+    } else {
+      // Single-plan PDF — extract immediately
+      setStatus('Extracting benefits...', 'blue');
+      const data = await extractFromPDF(currentTabUrl, null);
+      setProgress('Done!', 100);
+      renderResults(data);
+    }
+  } catch (e) {
+    console.error('Extraction error:', e);
+    document.getElementById('error-msg').textContent = `Error: ${e.message || e}`;
+    setStatus('Extraction failed', 'red');
+    showState('error');
+  }
+}
+
+async function doExtractSelectedPlan() {
+  const selector = document.getElementById('plan-selector');
+  const planIndex = parseInt(selector.value);
+  const selectedPlan = detectedPlans[planIndex];
+
+  if (!selectedPlan) return;
+
+  showState('loading');
+  setStatus(`Extracting ${selectedPlan.name}...`, 'blue');
+  setProgress('Extracting plan data...', 55);
+
+  try {
+    const data = await extractFromPDF(currentTabUrl, selectedPlan);
     setProgress('Done!', 100);
     renderResults(data);
   } catch (e) {
@@ -290,6 +399,7 @@ document.addEventListener('DOMContentLoaded', () => {
   checkCurrentTab();
 
   document.getElementById('btn-extract').addEventListener('click', doExtract);
+  document.getElementById('btn-extract-plan').addEventListener('click', doExtractSelectedPlan);
   document.getElementById('btn-retry').addEventListener('click', doExtract);
   document.getElementById('btn-reextract').addEventListener('click', doExtract);
   document.getElementById('btn-copy').addEventListener('click', copyToClipboard);
